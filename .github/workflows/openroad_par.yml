@@ -19,131 +19,101 @@ jobs:
       PDK_VER: "bdc9412b3e468c102d01b7cf6337be06ec6e9c9a"
       PDK_ROOT: "${{ github.workspace }}/pdk"
       DESIGN:   "OPEN_SOC_FLOW"
+      OR_VERSION: "v3.0-3-g1b4fe8f9d5"
 
     steps:
-      # ── Checkout ────────────────────────────────────────────────────────────
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Python setup ─────────────────────────────────────────────────────────
+      # ── Install OpenROAD binary (Precision-Innovations pre-built .deb) ─────────
+      # This is the most reliable pre-built binary source for Ubuntu 22.04
+      - name: Install OpenROAD
+        run: |
+          wget -q https://github.com/Precision-Innovations/OpenROAD/releases/download/2024-08-21/openroad_2.0_amd64-ubuntu22.04-2024-08-21.deb \
+            -O /tmp/openroad.deb
+          sudo apt-get install -y /tmp/openroad.deb
+          openroad -version
+
+      # ── Install Python + volare (PDK manager) ─────────────────────────────────
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # ── Install OpenLane (pulls OpenROAD, Yosys, KLayout, Magic binaries) ──
-      # openlane pip package ships pre-built tool binaries via Nix closure
-      # This is the official distribution mechanism as of OpenLane 2.x
-      - name: Install OpenLane 2 (includes OpenROAD binary)
-        run: |
-          pip install openlane
-          # Verify openroad is available
-          python3 -c "import openlane; print('OpenLane:', openlane.__version__)"
-          # OpenROAD binary is in the Nix/openlane tool path
-          openroad -version || \
-            python3 -m openlane.scripts.get_tool openroad || \
-            echo "Finding openroad in openlane toolchain..."
-          # Try to locate the binary
-          find / -name "openroad" -type f 2>/dev/null | head -5
-
-      # ── Install volare + Sky130A PDK ────────────────────────────────────────
       - name: Install Sky130A PDK via volare
         run: |
           pip install volare
           volare enable --pdk sky130 "$PDK_VER" --pdk-root "$PDK_ROOT"
-          echo "PDK installed at: $PDK_ROOT"
+          echo "=== PDK lib files ==="
           ls "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lib/" | head -5
           ls "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lef/"
           ls "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/techlef/"
 
-      # ── Determine openroad binary path ───────────────────────────────────────
-      - name: Locate OpenROAD binary and add to PATH
-        run: |
-          # openlane stores tools under ~/.local/share/openlane/tools/ or similar
-          OR_BIN=$(find $HOME -name "openroad" -type f 2>/dev/null | head -1)
-          if [ -z "$OR_BIN" ]; then
-            OR_BIN=$(find /opt /usr -name "openroad" -type f 2>/dev/null | head -1)
-          fi
-          if [ -z "$OR_BIN" ]; then
-            echo "ERROR: openroad binary not found"
-            exit 1
-          fi
-          echo "Found: $OR_BIN"
-          OR_DIR=$(dirname "$OR_BIN")
-          echo "$OR_DIR" >> $GITHUB_PATH
-          echo "OPENROAD_EXE=$OR_BIN" >> $GITHUB_ENV
-          "$OR_BIN" -version
-
-      # ── Prepare directories ──────────────────────────────────────────────────
-      - name: Verify inputs and create output directories
+      # ── Verify design inputs ───────────────────────────────────────────────────
+      - name: Verify design inputs
         working-directory: ${{ env.DESIGN }}
         run: |
-          echo "=== Netlist ==="
-          wc -l gls/netlist/soc_top_sky130.v
-          grep -c sky130_fd_sc_hd gls/netlist/soc_top_sky130.v
+          echo "=== Netlist (first 5 lines) ==="
+          head -5 gls/netlist/soc_top_sky130.v
+          echo "Total cells: $(grep -c sky130_fd_sc_hd gls/netlist/soc_top_sky130.v)"
           echo "=== SDC ==="
           cat constraints/soc_top.sdc
           mkdir -p physical reports/timing reports/routing reports/synthesis reports/pv gds
 
-      # ── Stage 1: Floorplan ──────────────────────────────────────────────────
-      - name: "Stage 1/4 — Floorplan (initialize + PDN + IO pins)"
+      # ── Stage 1: Floorplan ─────────────────────────────────────────────────────
+      - name: "Stage 1/4 — Floorplan"
         working-directory: ${{ env.DESIGN }}
         run: |
           openroad -exit openroad/floorplan/floorplan.tcl 2>&1 | tee reports/synthesis/floorplan.log
-          du -h physical/floorplan.def
-          echo "Exit code: $?"
+          ls -lh physical/floorplan.def
 
-      # ── Stage 2: Placement ──────────────────────────────────────────────────
-      - name: "Stage 2/4 — Global + Detailed Placement"
+      # ── Stage 2: Placement ─────────────────────────────────────────────────────
+      - name: "Stage 2/4 — Placement"
         working-directory: ${{ env.DESIGN }}
         run: |
           openroad -exit openroad/placement/placement.tcl 2>&1 | tee reports/synthesis/placement.log
-          du -h physical/placed.def
+          ls -lh physical/placed.def
 
-      # ── Stage 3: Clock Tree Synthesis ───────────────────────────────────────
-      - name: "Stage 3/4 — Clock Tree Synthesis + hold repair"
+      # ── Stage 3: CTS ───────────────────────────────────────────────────────────
+      - name: "Stage 3/4 — Clock Tree Synthesis"
         working-directory: ${{ env.DESIGN }}
         run: |
           openroad -exit openroad/cts/cts.tcl 2>&1 | tee reports/synthesis/cts.log
-          du -h physical/cts.def
-          echo "=== Clock skew ==="
-          cat reports/timing/cts_skew.rpt 2>/dev/null || echo "(skew report not found)"
+          ls -lh physical/cts.def
 
-      # ── Stage 4: Routing + SPEF extraction ──────────────────────────────────
-      - name: "Stage 4/4 — FastRoute + TritonRoute + OpenRCX (SPEF)"
+      # ── Stage 4: Routing + SPEF ────────────────────────────────────────────────
+      - name: "Stage 4/4 — Routing + SPEF Extraction"
         working-directory: ${{ env.DESIGN }}
         timeout-minutes: 120
         run: |
           openroad -exit openroad/routing/routing.tcl 2>&1 | tee reports/routing/routing.log
-          du -h physical/routed.def
-          ls -lh physical/soc_top.spef 2>/dev/null || echo "NOTE: SPEF not generated (check OpenRCX rule file path)"
+          ls -lh physical/routed.def
+          ls -lh physical/soc_top.spef 2>/dev/null || echo "NOTE: SPEF not written — check OpenRCX rule path"
 
-      # ── Post-route STA signoff ───────────────────────────────────────────────
-      - name: "STA Signoff — TT/FF/SS corners with SPEF"
+      # ── STA signoff ────────────────────────────────────────────────────────────
+      - name: "STA Signoff — TT/FF/SS with SPEF"
         working-directory: ${{ env.DESIGN }}
         run: |
           openroad -exit openroad/sta/sta_signoff.tcl 2>&1 | tee reports/timing/sta_signoff.log
 
-      # ── Print timing results to Actions summary ──────────────────────────────
-      - name: Print timing signoff results
+      # ── Print timing summary ───────────────────────────────────────────────────
+      - name: Print timing results
         working-directory: ${{ env.DESIGN }}
         if: always()
         run: |
-          echo "## Timing Signoff Results" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat reports/timing/sta_signoff_summary.rpt 2>/dev/null \
-            || head -80 reports/timing/sta_signoff.log 2>/dev/null \
-            || echo "(no report)"
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo ""
-          echo "=== TIMING SIGNOFF SUMMARY ==="
+          {
+            echo "## Timing Signoff"
+            echo '```'
+            cat reports/timing/sta_signoff_summary.rpt 2>/dev/null \
+              || grep -A5 "SIGNOFF\|PASS\|FAIL\|WNS\|TNS" reports/timing/sta_signoff.log 2>/dev/null \
+              || echo "(no summary yet)"
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+          echo "=== TIMING SUMMARY ==="
           cat reports/timing/sta_signoff_summary.rpt 2>/dev/null || true
-          echo ""
-          echo "=== WORST SETUP PATH (TT corner) ==="
-          head -100 reports/timing/sta_setup_tt.rpt 2>/dev/null || echo "(not found)"
 
-      # ── GDS export (KLayout Python API) ─────────────────────────────────────
-      - name: "GDS Export — merge routed DEF + std-cell GDS"
+      # ── GDS export ─────────────────────────────────────────────────────────────
+      - name: "GDS Export"
         working-directory: ${{ env.DESIGN }}
         if: success()
         run: |
@@ -152,24 +122,20 @@ jobs:
             --def     physical/routed.def \
             --lef     "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef" \
             --techlef "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/techlef/sky130_fd_sc_hd__nom.tlef" \
-            --gds     gds/soc_top.gds \
-            2>&1 | tee gds/generate_gds.log || true
+            --gds     gds/soc_top.gds 2>&1 | tee gds/generate_gds.log || true
           ls -lh gds/
 
-      # ── DRC (KLayout Python API) ─────────────────────────────────────────────
-      - name: "DRC — KLayout Sky130A design rules"
+      # ── DRC ────────────────────────────────────────────────────────────────────
+      - name: "DRC — KLayout Sky130A"
         working-directory: ${{ env.DESIGN }}
         if: success()
         run: |
           python3 physical_verification/klayout/run_drc_sky130.py \
             --gds gds/soc_top.gds \
-            --rpt reports/pv/klayout_drc.xml \
-            2>&1 | tee reports/pv/drc.log || true
-          echo "=== DRC SUMMARY ==="
-          tail -20 reports/pv/drc.log 2>/dev/null || true
+            --rpt reports/pv/klayout_drc.xml 2>&1 | tee reports/pv/drc.log || true
 
-      # ── Upload all artifacts ─────────────────────────────────────────────────
-      - name: Upload P&R artifacts (DEF + SPEF + GDS + reports)
+      # ── Upload all artifacts ───────────────────────────────────────────────────
+      - name: Upload P&R results
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -182,7 +148,7 @@ jobs:
             OPEN_SOC_FLOW/gls/netlist/soc_top_cts.v
             OPEN_SOC_FLOW/reports/
 
-      - name: Upload DEF checkpoints (stage-by-stage resume)
+      - name: Upload DEF checkpoints
         uses: actions/upload-artifact@v4
         if: always()
         with:
