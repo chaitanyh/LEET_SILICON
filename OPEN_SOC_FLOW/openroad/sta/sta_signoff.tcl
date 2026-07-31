@@ -9,7 +9,6 @@ if {$is_openroad} {
     puts "Running in OpenROAD context"
     read_lef $TECH_LEF
     read_lef $CELL_LEF
-    read_def $ROUTE_DEF
 } else {
     puts "Running in OpenSTA standalone context"
     set PDK_VER "bdc9412b3e468c102d01b7cf6337be06ec6e9c9a"

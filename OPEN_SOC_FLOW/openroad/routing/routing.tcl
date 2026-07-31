@@ -14,10 +14,8 @@ read_liberty $LIB_TT
 read_liberty $LIB_FF
 read_liberty $LIB_SS
 
-read_verilog $SYNTH_NETLIST
-link_design  $DESIGN_NAME
-read_sdc     $SDC_FILE
-read_def     $CTS_DEF
+read_def $CTS_DEF
+read_sdc $SDC_FILE
 
 set_wire_rc -signal -layer met2
 set_wire_rc -clock  -layer met3
@@ -42,7 +40,6 @@ global_route \
 puts "\n=== Global Routing Congestion ==="
 report_global_routing_congestion
 
-# ── Antenna repair ─────────────────────────────────────────────────────────────
 repair_antennas sky130_fd_sc_hd__diode_2 \
     || puts "NOTE: antenna repair skipped"
 
@@ -56,7 +53,6 @@ detailed_route \
 puts "\n=== Post-Route DRC ==="
 check_antennas -report_file reports/routing/antenna_violations.rpt || true
 
-# ── Parasitic Extraction (OpenRCX) ───────────────────────────────────────────
 puts "\nRunning RC extraction (OpenRCX)..."
 set rcx_rules "$PDK_ROOT/sky130A/libs.tech/openlane/rcx_rules.lef"
 if {[file exists $rcx_rules]} {
@@ -65,7 +61,7 @@ if {[file exists $rcx_rules]} {
     write_spef physical/soc_top.spef
     puts "SPEF written: physical/soc_top.spef"
 } else {
-    puts "NOTE: RCX rule file not found — skipping SPEF"
+    puts "NOTE: RCX rule file not found at $rcx_rules — skipping SPEF"
 }
 
 puts "\n=== Post-Route STA ==="

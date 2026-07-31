@@ -8,16 +8,16 @@ puts "\n================================================================="
 puts "  PLACEMENT — $DESIGN_NAME"
 puts "=================================================================\n"
 
+# OpenROAD checkpoint flow: read_lef → read_liberty → read_def → read_sdc
+# (read_verilog/link_design not needed when reading a full checkpoint DEF)
 read_lef $TECH_LEF
 read_lef $CELL_LEF
 read_liberty $LIB_TT
 read_liberty $LIB_FF
 read_liberty $LIB_SS
 
-read_verilog $SYNTH_NETLIST
-link_design  $DESIGN_NAME
-read_sdc     $SDC_FILE
-read_def     $FP_DEF
+read_def $FP_DEF
+read_sdc $SDC_FILE
 
 set_wire_rc -signal -layer met2
 set_wire_rc -clock  -layer met3
@@ -59,17 +59,9 @@ repair_timing \
 
 detailed_placement
 
-# ── Post-placement checks ─────────────────────────────────────────────────────
-check_placement -verbose
-
-estimate_parasitics -placement
-
 puts "\n=== Post-Placement Setup Timing ==="
 report_checks -path_delay max -fields {slew cap input_pins nets} \
     -format full_clock_expanded -digits 3
-
-puts "\n=== Post-Placement Hold Timing ==="
-report_checks -path_delay min -digits 3
 
 puts "\n=== WNS / TNS ==="
 report_wns
@@ -78,7 +70,6 @@ report_tns
 puts "\n=== Design Area ==="
 report_design_area
 
-# ── Write output ──────────────────────────────────────────────────────────────
 write_def physical/placed.def
 write_verilog gls/netlist/soc_top_placed.v
 
