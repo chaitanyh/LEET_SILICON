@@ -13,34 +13,25 @@ jobs:
   par:
     name: P&R — Sky130A | soc_top (PicoRV32 SoC)
     runs-on: ubuntu-22.04
+    # OpenROAD-flow-scripts builder image — includes current OpenROAD + KLayout + Python
+    container:
+      image: openroad/flow-ubuntu22.04-builder:latest
     timeout-minutes: 240
 
     env:
       PDK_VER: "bdc9412b3e468c102d01b7cf6337be06ec6e9c9a"
       PDK_ROOT: "${{ github.workspace }}/pdk"
       DESIGN:   "OPEN_SOC_FLOW"
-      OR_VERSION: "v3.0-3-g1b4fe8f9d5"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Install OpenROAD binary (Precision-Innovations pre-built .deb) ─────────
-      - name: Install OpenROAD
-        run: |
-          sudo apt-get update -qq
-          wget https://github.com/Precision-Innovations/OpenROAD/releases/download/2024-12-14/openroad_2.0-17598-ga008522d8_amd64-ubuntu-22.04.deb \
-            -O /tmp/openroad.deb
-          sudo apt-get install -y --fix-missing /tmp/openroad.deb
-          openroad -version
+      - name: Verify OpenROAD version
+        run: openroad -version
 
       # ── Install Python + volare (PDK manager) ─────────────────────────────────
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Sky130A PDK via volare
+      - name: Install volare and Sky130A PDK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -119,7 +110,6 @@ jobs:
         working-directory: ${{ env.DESIGN }}
         if: success()
         run: |
-          pip install klayout
           python3 physical_verification/klayout/generate_gds.py \
             --def     physical/routed.def \
             --lef     "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef" \

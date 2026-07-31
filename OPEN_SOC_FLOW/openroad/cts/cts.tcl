@@ -10,9 +10,6 @@ puts "=================================================================\n"
 
 read_lef $TECH_LEF
 read_lef $CELL_LEF
-# Synthetic bufinv stubs: TritonCTS characterization looks for bufinv_N cells
-# that don't exist in sky130_fd_sc_hd. These stubs satisfy the LEF lookup.
-read_lef openroad/cts/cts_bufinv.lef
 read_liberty $LIB_TT
 read_liberty $LIB_FF
 read_liberty $LIB_SS
