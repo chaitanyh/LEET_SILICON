@@ -27,11 +27,6 @@ set_wire_rc -signal -layer met2
 set_wire_rc -clock  -layer met3
 
 # ── Configure CTS ─────────────────────────────────────────────────────────────
-# TritonCTS parameters for sky130_fd_sc_hd:
-#   Buffers : clkbuf_4, clkbuf_8, clkbuf_16 (HD variants)
-#   Target max slew    : 0.25 ns
-#   Target max cap     : 0.50 pF
-#   Max skew target    : 0.3 ns (for 50 MHz design, very achievable)
 clock_tree_synthesis \
     -root_buf          sky130_fd_sc_hd__clkbuf_8 \
     -buf_list          {sky130_fd_sc_hd__clkbuf_4 sky130_fd_sc_hd__clkbuf_8 sky130_fd_sc_hd__clkbuf_16} \
@@ -44,7 +39,6 @@ clock_tree_synthesis \
 detailed_placement
 
 # ── Post-CTS hold repair ──────────────────────────────────────────────────────
-# After CTS, hold violations often appear — insert hold buffers
 estimate_parasitics -placement
 
 puts "\nRepairing hold violations post-CTS..."
@@ -59,29 +53,29 @@ detailed_placement
 
 # ── CTS reports ───────────────────────────────────────────────────────────────
 puts "\n=== Clock Skew ==="
-report_clock_skew | tee reports/timing/cts_skew.rpt
-
-puts "\n=== CTS Insertion Delay ==="
-report_clock_min_period | tee reports/timing/cts_insertion.rpt
+redirect reports/timing/cts_skew.rpt { report_clock_skew }
 
 puts "\n=== Post-CTS Setup Timing ==="
-report_checks -path_delay max \
-    -fields {slew cap input_pins nets} \
-    -format full_clock_expanded \
-    -digits 3 \
-    | tee reports/timing/cts_setup.rpt
+redirect reports/timing/cts_setup.rpt {
+    report_checks -path_delay max \
+        -fields {slew cap input_pins nets} \
+        -format full_clock_expanded \
+        -digits 3
+}
 
 puts "\n=== Post-CTS Hold Timing ==="
-report_checks -path_delay min \
-    -digits 3 \
-    | tee reports/timing/cts_hold.rpt
+redirect reports/timing/cts_hold.rpt {
+    report_checks -path_delay min -digits 3
+}
 
 puts "\n=== WNS / TNS post-CTS ==="
-report_wns | tee reports/timing/cts_wns.rpt
-report_tns | tee -a reports/timing/cts_wns.rpt
+redirect reports/timing/cts_wns.rpt {
+    report_wns
+    report_tns
+}
 
 puts "\n=== Design Area post-CTS ==="
-report_design_area | tee reports/synthesis/cts_area.rpt
+redirect reports/synthesis/cts_area.rpt { report_design_area }
 
 # ── Write CTS DEF ─────────────────────────────────────────────────────────────
 write_def physical/cts.def

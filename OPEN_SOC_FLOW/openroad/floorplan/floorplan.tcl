@@ -106,32 +106,16 @@ pdngen
 estimate_parasitics -placement
 
 # ── Pre-placement timing reports ──────────────────────────────────────────────
-set_wire_rc -metal 3
+set_wire_rc -layer met3
 
 puts "\n=== Pre-placement Setup Timing ==="
-report_checks -path_delay max -fields {slew cap input_pins nets} -format full_clock_expanded -digits 3 \
-    | tee reports/timing/fp_setup.rpt
+redirect reports/timing/fp_setup.rpt { report_checks -path_delay max -fields {slew cap input_pins nets} -format full_clock_expanded -digits 3 }
 
 puts "\n=== Pre-placement Hold Timing ==="
-report_checks -path_delay min -fields {slew cap input_pins nets} -digits 3 \
-    | tee reports/timing/fp_hold.rpt
+redirect reports/timing/fp_hold.rpt { report_checks -path_delay min -fields {slew cap input_pins nets} -digits 3 }
 
 puts "\n=== Design Area ==="
-report_design_area | tee reports/synthesis/design_area.rpt
-
-puts "\n=== IO Placement Summary ==="
-report_io_placement | tee reports/synthesis/io_placement.rpt
-
-# ── Congestion pre-check ──────────────────────────────────────────────────────
-# Run global routing in estimation mode to check for congestion
-set_routing_layers -signal {met1 met2 met3 met4 met5} -clock {met3 met4 met5}
-global_route -guide_file reports/synthesis/routing_congestion.guide \
-             -congestion_iterations 5 \
-             -verbose 1 \
-    || puts "NOTE: Pre-route congestion check done (warnings expected at this stage)"
-
-puts "\n=== Congestion Report ==="
-report_global_routing_congestion | tee reports/synthesis/congestion.rpt
+redirect reports/synthesis/design_area.rpt { report_design_area }
 
 # ── Write floorplan DEF ────────────────────────────────────────────────────────
 file mkdir physical

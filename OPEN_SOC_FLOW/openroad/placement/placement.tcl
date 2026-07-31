@@ -39,10 +39,11 @@ global_placement \
 estimate_parasitics -placement
 
 puts "\n=== Post-Global-Placement Timing ==="
-report_checks -path_delay max -digits 3 -fields {slew cap nets} \
-    | tee reports/timing/gpl_setup.rpt
-report_wns  | tee -a reports/timing/gpl_setup.rpt
-report_tns  | tee -a reports/timing/gpl_setup.rpt
+redirect reports/timing/gpl_setup.rpt {
+    report_checks -path_delay max -digits 3 -fields {slew cap nets}
+    report_wns
+    report_tns
+}
 
 # ── Repair design (buffer insertion, gate sizing for slew/cap) ────────────────
 puts "\nRepair design for max cap/slew violations..."
@@ -67,25 +68,30 @@ repair_timing \
 detailed_placement
 
 # ── Post-placement checks ─────────────────────────────────────────────────────
-check_placement -verbose | tee reports/synthesis/placement_check.rpt
+redirect reports/synthesis/placement_check.rpt { check_placement -verbose }
 
 # ── Final post-placement timing ───────────────────────────────────────────────
 estimate_parasitics -placement
 
 puts "\n=== Post-Placement Setup Timing ==="
-report_checks -path_delay max -fields {slew cap input_pins nets} \
-    -format full_clock_expanded -digits 3 \
-    | tee reports/timing/pl_setup.rpt
+redirect reports/timing/pl_setup.rpt {
+    report_checks -path_delay max -fields {slew cap input_pins nets} \
+        -format full_clock_expanded -digits 3
+}
 
 puts "\n=== Post-Placement Hold Timing ==="
-report_checks -path_delay min -digits 3 | tee reports/timing/pl_hold.rpt
+redirect reports/timing/pl_hold.rpt {
+    report_checks -path_delay min -digits 3
+}
 
 puts "\n=== WNS / TNS ==="
-report_wns | tee reports/timing/pl_wns.rpt
-report_tns | tee -a reports/timing/pl_wns.rpt
+redirect reports/timing/pl_wns.rpt {
+    report_wns
+    report_tns
+}
 
 puts "\n=== Design Area After Placement ==="
-report_design_area | tee reports/synthesis/placed_area.rpt
+redirect reports/synthesis/placed_area.rpt { report_design_area }
 
 # ── Write output ──────────────────────────────────────────────────────────────
 write_def physical/placed.def

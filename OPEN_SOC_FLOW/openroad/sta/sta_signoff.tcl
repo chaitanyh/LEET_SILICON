@@ -1,11 +1,9 @@
 # =============================================================================
 # sta_signoff.tcl — Multi-corner sign-off STA for soc_top
-# Can run standalone with OpenSTA or embedded in OpenROAD
-# Requires: routed netlist + SPEF + Liberty (TT/FF/SS) + SDC
+# Runs inside OpenROAD (embedded STA) after routing
 # =============================================================================
 
 # ── Detect execution context ──────────────────────────────────────────────────
-# OpenSTA standalone: no 'read_def' available; OpenROAD: has full P&R context
 set is_openroad [expr {[info commands read_def] ne ""}]
 
 if {$is_openroad} {
@@ -16,9 +14,7 @@ if {$is_openroad} {
     read_def $ROUTE_DEF
 } else {
     puts "Running in OpenSTA standalone context"
-    # Set paths directly for standalone OpenSTA
     set PDK_VER "bdc9412b3e468c102d01b7cf6337be06ec6e9c9a"
-    # Windows: USERPROFILE; Linux: HOME
     set _home [expr {[info exists ::env(USERPROFILE)] ? $::env(USERPROFILE) : $::env(HOME)}]
     set PDK_ROOT "$_home/.volare/volare/sky130/versions/$PDK_VER"
     set DESIGN_NAME "soc_top"
@@ -51,64 +47,47 @@ link_design  $DESIGN_NAME
 # ── Read constraints ──────────────────────────────────────────────────────────
 read_sdc $SDC_FILE
 
-# ── Read SPEF parasitics for each corner ─────────────────────────────────────
+# ── Read SPEF parasitics ─────────────────────────────────────────────────────
 if {[file exists $SPEF_FILE]} {
     read_spef -corner tt $SPEF_FILE
     read_spef -corner ff $SPEF_FILE
     read_spef -corner ss $SPEF_FILE
     puts "SPEF loaded: $SPEF_FILE"
 } else {
-    puts "NOTE: SPEF not found — using wire RC models (pre-route estimate)"
+    puts "NOTE: SPEF not found — using wire RC models"
     set_wire_rc -signal -layer met2
     set_wire_rc -clock  -layer met3
     estimate_parasitics -placement
 }
 
-# ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─────
-# STA REPORTS
-# ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─────
-
 file mkdir reports/timing
 
-# TT Corner: Setup (worst case for setup)
-puts "\n==================================================================="
-puts "  TT Corner (025C 1v80) — Setup (max path)"
-puts "===================================================================\n"
-report_checks -corner tt -path_delay max \
-    -fields {slew cap input_pins nets} \
-    -format full_clock_expanded \
-    -digits 3 \
-    -path_count 10 \
-    | tee reports/timing/sta_setup_tt.rpt
+# ── TT Corner ────────────────────────────────────────────────────────────────
+puts "\n=== TT Corner — Setup ==="
+redirect reports/timing/sta_setup_tt.rpt {
+    report_checks -corner tt -path_delay max \
+        -fields {slew cap input_pins nets} \
+        -format full_clock_expanded -digits 3 -path_count 10
+}
 
-# TT Corner: Hold
-puts "\n==================================================================="
-puts "  TT Corner (025C 1v80) — Hold (min path)"
-puts "===================================================================\n"
-report_checks -corner tt -path_delay min \
-    -digits 3 \
-    -path_count 5 \
-    | tee reports/timing/sta_hold_tt.rpt
+puts "\n=== TT Corner — Hold ==="
+redirect reports/timing/sta_hold_tt.rpt {
+    report_checks -corner tt -path_delay min -digits 3 -path_count 5
+}
 
-# SS Corner: Setup (worst-case setup — slowest process, hot, low voltage)
-puts "\n==================================================================="
-puts "  SS Corner (100C 1v60) — Setup (max path) — WORST SETUP"
-puts "===================================================================\n"
-report_checks -corner ss -path_delay max \
-    -fields {slew cap input_pins nets} \
-    -format full_clock_expanded \
-    -digits 3 \
-    -path_count 10 \
-    | tee reports/timing/sta_setup_ss.rpt
+# ── SS Corner ────────────────────────────────────────────────────────────────
+puts "\n=== SS Corner — Setup (worst) ==="
+redirect reports/timing/sta_setup_ss.rpt {
+    report_checks -corner ss -path_delay max \
+        -fields {slew cap input_pins nets} \
+        -format full_clock_expanded -digits 3 -path_count 10
+}
 
-# FF Corner: Hold (worst-case hold — fastest process, cold, high voltage)
-puts "\n==================================================================="
-puts "  FF Corner (n40C 1v95) — Hold (min path) — WORST HOLD"
-puts "===================================================================\n"
-report_checks -corner ff -path_delay min \
-    -digits 3 \
-    -path_count 10 \
-    | tee reports/timing/sta_hold_ff.rpt
+# ── FF Corner ────────────────────────────────────────────────────────────────
+puts "\n=== FF Corner — Hold (worst) ==="
+redirect reports/timing/sta_hold_ff.rpt {
+    report_checks -corner ff -path_delay min -digits 3 -path_count 10
+}
 
 # ── Multi-corner WNS/TNS summary ─────────────────────────────────────────────
 puts "\n================================================================="
@@ -122,22 +101,15 @@ foreach corner {tt ff ss} {
     puts ""
 }
 
-# ── Clock report ──────────────────────────────────────────────────────────────
-puts "\n=== Clock Summary ==="
-report_clocks | tee reports/timing/sta_clocks.rpt
-
-# ── Constraint check ─────────────────────────────────────────────────────────
-puts "\n=== Constraint Check ==="
-check_timing | tee reports/timing/sta_constraints.rpt
+# ── Clock and constraint reports ──────────────────────────────────────────────
+redirect reports/timing/sta_clocks.rpt { report_clocks }
+redirect reports/timing/sta_constraints.rpt { check_timing }
 
 # ── Signoff summary ───────────────────────────────────────────────────────────
 puts "\n================================================================="
 puts "  SIGNOFF SUMMARY"
 puts "================================================================="
 
-# Collect worst slack across all corners using worst_slack proc (OpenROAD embedded STA)
-# worst_slack returns the worst slack for the given min/max analysis over all corners,
-# or for a specific corner using -corner flag.
 proc get_wns {min_max corner_name} {
     set paths [find_timing_paths -path_delay $min_max -corner $corner_name -sort_by_slack -endpoint_path_count 1]
     if {[llength $paths] == 0} { return 0.0 }
@@ -156,11 +128,10 @@ foreach {label val} [list \
     if {$val >= 0} {
         puts "  PASS  $label : [format {%+.3f} $val] ns"
     } else {
-        puts "  FAIL  $label : [format {%+.3f} $val] ns  ← VIOLATION"
+        puts "  FAIL  $label : [format {%+.3f} $val] ns  <- VIOLATION"
     }
 }
 
-# Write summary report
 set summary_file reports/timing/sta_signoff_summary.rpt
 set fh [open $summary_file w]
 puts $fh "STA SIGNOFF SUMMARY — $DESIGN_NAME"
