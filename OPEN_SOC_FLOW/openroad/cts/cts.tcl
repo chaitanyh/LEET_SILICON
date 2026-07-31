@@ -22,24 +22,11 @@ set_wire_rc -clock  -layer met3
 
 clock_tree_synthesis \
     -root_buf sky130_fd_sc_hd__clkbuf_8 \
-    -buf_list {sky130_fd_sc_hd__clkbuf_4 sky130_fd_sc_hd__clkbuf_8 sky130_fd_sc_hd__clkbuf_16} \
-    -sink_clustering_enable \
-    -sink_clustering_size     30 \
-    -sink_clustering_max_diameter 50.0 \
-    -balance_levels
+    -buf_list {sky130_fd_sc_hd__clkbuf_4 sky130_fd_sc_hd__clkbuf_8 sky130_fd_sc_hd__clkbuf_16}
 
 detailed_placement
 
 estimate_parasitics -placement
-
-puts "\nRepairing hold violations post-CTS..."
-repair_timing \
-    -hold \
-    -hold_margin 0.05 \
-    -max_passes  5 \
-    -verbose
-
-detailed_placement
 
 puts "\n=== Clock Skew ==="
 report_clock_skew
