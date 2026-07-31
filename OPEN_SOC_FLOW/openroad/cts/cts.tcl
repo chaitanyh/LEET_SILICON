@@ -11,11 +11,11 @@ puts "=================================================================\n"
 read_lef $TECH_LEF
 read_lef $CELL_LEF
 read_liberty $LIB_TT
-read_liberty $LIB_FF
-read_liberty $LIB_SS
 
-read_def $PL_DEF
-read_sdc $SDC_FILE
+read_verilog $SYNTH_NETLIST
+link_design  $DESIGN_NAME
+read_def     $PL_DEF
+read_sdc     $SDC_FILE
 
 set_wire_rc -signal -layer met2
 set_wire_rc -clock  -layer met3
