@@ -13,9 +13,9 @@ jobs:
   par:
     name: P&R — Sky130A | soc_top (PicoRV32 SoC)
     runs-on: ubuntu-22.04
-    # OpenROAD-flow-scripts builder image — includes current OpenROAD + KLayout + Python
+    # openroad/orfs — Official OpenROAD Flow Scripts image with openroad binary pre-installed
     container:
-      image: openroad/flow-ubuntu22.04-builder:latest
+      image: openroad/orfs:latest
     timeout-minutes: 240
 
     env:
