@@ -1,0 +1,136 @@
+VERSION 5.8 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+# Synthetic bufinv cells for TritonCTS characterization.
+# TritonCTS constructs "bufinv_N" dummy cell names from the clock buffer list.
+# sky130_fd_sc_hd has no native bufinv cells; these stubs satisfy the lookup.
+# Dimensions match their clkbuf counterparts exactly.
+
+MACRO sky130_fd_sc_hd__bufinv_4
+  CLASS CORE ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 2.760 BY 2.720 ;
+  SYMMETRY X Y R90 ;
+  SITE unithd ;
+  PIN A
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER li1 ;
+        RECT 0.085 0.765 0.400 1.325 ;
+    END
+  END A
+  PIN Z
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER li1 ;
+        RECT 1.500 0.765 1.815 1.325 ;
+    END
+  END Z
+  PIN VPWR
+    DIRECTION INOUT ;
+    USE POWER ;
+    SHAPE ABUTMENT ;
+    PORT
+      LAYER met1 ;
+        RECT 0.000 2.480 2.760 2.720 ;
+    END
+  END VPWR
+  PIN VGND
+    DIRECTION INOUT ;
+    USE GROUND ;
+    SHAPE ABUTMENT ;
+    PORT
+      LAYER met1 ;
+        RECT 0.000 0.000 2.760 0.240 ;
+    END
+  END VGND
+END sky130_fd_sc_hd__bufinv_4
+
+MACRO sky130_fd_sc_hd__bufinv_8
+  CLASS CORE ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 5.060 BY 2.720 ;
+  SYMMETRY X Y R90 ;
+  SITE unithd ;
+  PIN A
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER li1 ;
+        RECT 0.085 0.765 0.400 1.325 ;
+    END
+  END A
+  PIN Z
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER li1 ;
+        RECT 2.530 0.765 2.845 1.325 ;
+    END
+  END Z
+  PIN VPWR
+    DIRECTION INOUT ;
+    USE POWER ;
+    SHAPE ABUTMENT ;
+    PORT
+      LAYER met1 ;
+        RECT 0.000 2.480 5.060 2.720 ;
+    END
+  END VPWR
+  PIN VGND
+    DIRECTION INOUT ;
+    USE GROUND ;
+    SHAPE ABUTMENT ;
+    PORT
+      LAYER met1 ;
+        RECT 0.000 0.000 5.060 0.240 ;
+    END
+  END VGND
+END sky130_fd_sc_hd__bufinv_8
+
+MACRO sky130_fd_sc_hd__bufinv_16
+  CLASS CORE ;
+  ORIGIN 0.000 0.000 ;
+  SIZE 9.200 BY 2.720 ;
+  SYMMETRY X Y R90 ;
+  SITE unithd ;
+  PIN A
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER li1 ;
+        RECT 0.085 0.765 0.400 1.325 ;
+    END
+  END A
+  PIN Z
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER li1 ;
+        RECT 4.600 0.765 4.915 1.325 ;
+    END
+  END Z
+  PIN VPWR
+    DIRECTION INOUT ;
+    USE POWER ;
+    SHAPE ABUTMENT ;
+    PORT
+      LAYER met1 ;
+        RECT 0.000 2.480 9.200 2.720 ;
+    END
+  END VPWR
+  PIN VGND
+    DIRECTION INOUT ;
+    USE GROUND ;
+    SHAPE ABUTMENT ;
+    PORT
+      LAYER met1 ;
+        RECT 0.000 0.000 9.200 0.240 ;
+    END
+  END VGND
+END sky130_fd_sc_hd__bufinv_16
+
+END LIBRARY
