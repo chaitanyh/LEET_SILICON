@@ -28,9 +28,10 @@ jobs:
       # ── Install OpenROAD binary (Precision-Innovations pre-built .deb) ─────────
       - name: Install OpenROAD
         run: |
+          sudo apt-get update -qq
           wget https://github.com/Precision-Innovations/OpenROAD/releases/download/2024-12-14/openroad_2.0-17598-ga008522d8_amd64-ubuntu-22.04.deb \
             -O /tmp/openroad.deb
-          sudo apt-get install -y /tmp/openroad.deb
+          sudo apt-get install -y --fix-missing /tmp/openroad.deb
           openroad -version
 
       # ── Install Python + volare (PDK manager) ─────────────────────────────────
