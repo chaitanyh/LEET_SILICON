@@ -35,12 +35,12 @@ read_sdc $SDC_FILE
 # Target core utilization: 35% → core area = 419825 / 0.35 = 1,199,500 µm²
 # Core side: sqrt(1,199,500) ≈ 1095 µm → round up to 1100 µm
 # Die = core + 2 × 40 µm boundary → 1180 µm × 1180 µm
-set SYNTH_AREA_UM2   419825.15
-set TARGET_UTIL      0.35
-set CORE_AREA_UM2    [expr {$SYNTH_AREA_UM2 / $TARGET_UTIL}]
-set CORE_SIDE_UM     [expr {ceil(sqrt($CORE_AREA_UM2))}]
+# Actual placed area after tap/endcap insertion is ~631K um2 (tap cells add ~50%)
+# Size for ~36% utilization to give router headroom: core 1320x1320, die 1400x1400 um
 set BOUNDARY         40.0
+set CORE_SIDE_UM     1320.0
 set DIE_SIDE         [expr {$CORE_SIDE_UM + 2 * $BOUNDARY}]
+set TARGET_UTIL      0.36
 
 puts "  Synthesis area: $SYNTH_AREA_UM2 µm²"
 puts "  Core side     : $CORE_SIDE_UM µm"

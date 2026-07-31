@@ -25,7 +25,7 @@ set_wire_rc -clock  -layer met3
 # ── Global Placement ──────────────────────────────────────────────────────────
 puts "Running global placement..."
 global_placement \
-    -density         0.35 \
+    -density         0.40 \
     -pad_left        2 \
     -pad_right       2 \
     -routability_driven \
