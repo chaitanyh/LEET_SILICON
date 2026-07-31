@@ -41,6 +41,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install Sky130A PDK via volare
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install volare
           volare enable --pdk sky130 "$PDK_VER" --pdk-root "$PDK_ROOT"
