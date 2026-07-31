@@ -36,7 +36,7 @@ set LIB_SS       "$PDK_ROOT/$PDK/libs.ref/$STD_LIB/lib/${STD_LIB}__ss_100C_1v60.
 # set SRAM_LIB_TT "../../memories/macros/sky130_sram_1kbyte_1rw1r_32x256_8/sky130_sram_1kbyte_1rw1r_32x256_8_TT_1p8V_25C.lib"
 
 # ── Project paths ─────────────────────────────────────────────────────────────
-set PROJECT_ROOT [file normalize "../../"]
+set PROJECT_ROOT [file normalize "."]
 set SDC_FILE     "$PROJECT_ROOT/constraints/soc_top.sdc"
 # Sky130 technology-mapped netlist (dfflibmap + abc with sky130_fd_sc_hd Liberty)
 set SYNTH_NETLIST "$PROJECT_ROOT/gls/netlist/soc_top_sky130.v"
