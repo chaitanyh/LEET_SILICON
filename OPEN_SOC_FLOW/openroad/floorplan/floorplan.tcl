@@ -58,8 +58,8 @@ make_tracks
 
 # ── IO pin placement ─────────────────────────────────────────────────────────
 place_pins \
-    -hor_layers met2 \
-    -ver_layers met3 \
+    -hor_layers met3 \
+    -ver_layers met2 \
     -min_distance 2
 
 # ── Tap cell insertion (prevent LU/LD well floating) ─────────────────────────
