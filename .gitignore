@@ -1,0 +1,28 @@
+# Build artifacts
+OPEN_SOC_FLOW/physical/*.def
+OPEN_SOC_FLOW/physical/*.spef
+OPEN_SOC_FLOW/physical/*.guide
+OPEN_SOC_FLOW/gds/*.gds
+
+# Large Liberty / PDK files (installed via volare, not committed)
+*.lib
+*.lef
+
+# Yosys / synthesis intermediates
+*.blif
+*.json
+synth_*.log
+
+# Simulation artifacts
+*.vcd
+*.fst
+*.ghw
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
