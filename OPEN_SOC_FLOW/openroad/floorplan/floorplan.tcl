@@ -31,21 +31,20 @@ puts "Reading SDC: $SDC_FILE"
 read_sdc $SDC_FILE
 
 # ── Compute floorplan dimensions ──────────────────────────────────────────────
-# Synthesis chip area: 419,825 µm² at sky130_fd_sc_hd (from stat -liberty)
+# Synthesis chip area: 419,825 µm² at sky130_fd_sc_hd
 # Target core utilization: 35% → core area = 419825 / 0.35 = 1,199,500 µm²
 # Core side: sqrt(1,199,500) ≈ 1095 µm → round up to 1100 µm
 # Die = core + 2 × 40 µm boundary → 1180 µm × 1180 µm
 set SYNTH_AREA_UM2   419825.15
 set TARGET_UTIL      0.35
 set CORE_AREA_UM2    [expr {$SYNTH_AREA_UM2 / $TARGET_UTIL}]
-set CORE_SIDE        [expr {int(ceil(sqrt($CORE_AREA_UM2) / 10.0) * 10)}]
-set BOUNDARY         40
-set DIE_SIDE         [expr {$CORE_SIDE + 2 * $BOUNDARY}]
+set CORE_SIDE_UM     [expr {ceil(sqrt($CORE_AREA_UM2))}]
+set BOUNDARY         40.0
+set DIE_SIDE         [expr {$CORE_SIDE_UM + 2 * $BOUNDARY}]
 
-puts "  Synthesis area  : [format %.0f $SYNTH_AREA_UM2] µm²"
-puts "  Target util     : [format %.0f [expr {$TARGET_UTIL * 100}]]%"
-puts "  Core side       : ${CORE_SIDE} µm"
-puts "  Die side        : ${DIE_SIDE} µm"
+puts "  Synthesis area: $SYNTH_AREA_UM2 µm²"
+puts "  Core side     : $CORE_SIDE_UM µm"
+puts "  Die side      : $DIE_SIDE µm (with $BOUNDARY µm boundary)"
 
 # ── Initialize floorplan ─────────────────────────────────────────────────────
 initialize_floorplan \
@@ -69,7 +68,6 @@ tapcell \
     -distance        14
 
 # ── Power Distribution Network ────────────────────────────────────────────────
-# Sky130A power pin names: VPWR/VGND for core, VPB/VNB for substrate bias
 add_global_connection -net VDD -pin_pattern {^VPWR$} -power
 add_global_connection -net VDD -pin_pattern {^VPB$}  -power
 add_global_connection -net VSS -pin_pattern {^VGND$} -ground
@@ -79,46 +77,37 @@ set_voltage_domain -power VDD -ground VSS
 
 define_pdn_grid -name "Core" -voltage_domains "Core"
 
-# Layer met1: horizontal followpin stripes (track power rails)
 add_pdn_stripe -followpins -layer met1 -width 0.48
 
-# Layer met4: vertical power stripes
 add_pdn_stripe \
     -layer  met4 \
-    -width  1.600 \
-    -pitch  [expr {$CORE_SIDE / 8.0}] \
-    -offset 20.0
+    -width  1.6 \
+    -pitch  50.0 \
+    -offset 10.0
 
-# Layer met5: horizontal power stripes
-add_pdn_stripe \
-    -layer  met5 \
-    -width  1.600 \
-    -pitch  [expr {$CORE_SIDE / 8.0}] \
-    -offset 20.0
-
-# Connect between layers
 add_pdn_connect -layers {met1 met4}
 add_pdn_connect -layers {met4 met5}
 
 pdngen
 
-# ── Estimate parasitics for pre-placement STA ─────────────────────────────────
+# ── Wire RC estimate for pre-floorplan STA ────────────────────────────────────
+set_wire_rc -layer met3
 estimate_parasitics -placement
 
-# ── Pre-placement timing reports ──────────────────────────────────────────────
-set_wire_rc -layer met3
-
-puts "\n=== Pre-placement Setup Timing ==="
-redirect reports/timing/fp_setup.rpt { report_checks -path_delay max -fields {slew cap input_pins nets} -format full_clock_expanded -digits 3 }
-
-puts "\n=== Pre-placement Hold Timing ==="
-redirect reports/timing/fp_hold.rpt { report_checks -path_delay min -fields {slew cap input_pins nets} -digits 3 }
+puts "\n=== Pre-placement Timing (wire RC estimate) ==="
+report_checks -path_delay max -digits 3
+report_wns
+report_tns
 
 puts "\n=== Design Area ==="
-redirect reports/synthesis/design_area.rpt { report_design_area }
+report_design_area
 
 # ── Write floorplan DEF ────────────────────────────────────────────────────────
 file mkdir physical
+file mkdir reports/timing
+file mkdir reports/synthesis
+file mkdir reports/routing
+file mkdir reports/pv
 write_def physical/floorplan.def
 
 puts ""

@@ -1,9 +1,7 @@
 # =============================================================================
 # sta_signoff.tcl — Multi-corner sign-off STA for soc_top
-# Runs inside OpenROAD (embedded STA) after routing
 # =============================================================================
 
-# ── Detect execution context ──────────────────────────────────────────────────
 set is_openroad [expr {[info commands read_def] ne ""}]
 
 if {$is_openroad} {
@@ -32,22 +30,15 @@ puts "  STA SIGN-OFF — $DESIGN_NAME"
 puts "  Corners: TT (025C 1v80), FF (n40C 1v95), SS (100C 1v60)"
 puts "=================================================================\n"
 
-# ── Define PVT corners ────────────────────────────────────────────────────────
 define_corners tt ff ss
-
-# ── Read Liberty for each corner ─────────────────────────────────────────────
 read_liberty -corner tt $LIB_TT
 read_liberty -corner ff $LIB_FF
 read_liberty -corner ss $LIB_SS
 
-# ── Read netlist ──────────────────────────────────────────────────────────────
 read_verilog $SYNTH_NETLIST
 link_design  $DESIGN_NAME
-
-# ── Read constraints ──────────────────────────────────────────────────────────
 read_sdc $SDC_FILE
 
-# ── Read SPEF parasitics ─────────────────────────────────────────────────────
 if {[file exists $SPEF_FILE]} {
     read_spef -corner tt $SPEF_FILE
     read_spef -corner ff $SPEF_FILE
@@ -62,34 +53,22 @@ if {[file exists $SPEF_FILE]} {
 
 file mkdir reports/timing
 
-# ── TT Corner ────────────────────────────────────────────────────────────────
 puts "\n=== TT Corner — Setup ==="
-redirect reports/timing/sta_setup_tt.rpt {
-    report_checks -corner tt -path_delay max \
-        -fields {slew cap input_pins nets} \
-        -format full_clock_expanded -digits 3 -path_count 10
-}
+report_checks -corner tt -path_delay max \
+    -fields {slew cap input_pins nets} \
+    -format full_clock_expanded -digits 3 -path_count 10
 
 puts "\n=== TT Corner — Hold ==="
-redirect reports/timing/sta_hold_tt.rpt {
-    report_checks -corner tt -path_delay min -digits 3 -path_count 5
-}
+report_checks -corner tt -path_delay min -digits 3 -path_count 5
 
-# ── SS Corner ────────────────────────────────────────────────────────────────
 puts "\n=== SS Corner — Setup (worst) ==="
-redirect reports/timing/sta_setup_ss.rpt {
-    report_checks -corner ss -path_delay max \
-        -fields {slew cap input_pins nets} \
-        -format full_clock_expanded -digits 3 -path_count 10
-}
+report_checks -corner ss -path_delay max \
+    -fields {slew cap input_pins nets} \
+    -format full_clock_expanded -digits 3 -path_count 10
 
-# ── FF Corner ────────────────────────────────────────────────────────────────
 puts "\n=== FF Corner — Hold (worst) ==="
-redirect reports/timing/sta_hold_ff.rpt {
-    report_checks -corner ff -path_delay min -digits 3 -path_count 10
-}
+report_checks -corner ff -path_delay min -digits 3 -path_count 10
 
-# ── Multi-corner WNS/TNS summary ─────────────────────────────────────────────
 puts "\n================================================================="
 puts "  MULTI-CORNER TIMING SUMMARY"
 puts "=================================================================\n"
@@ -101,15 +80,10 @@ foreach corner {tt ff ss} {
     puts ""
 }
 
-# ── Clock and constraint reports ──────────────────────────────────────────────
-redirect reports/timing/sta_clocks.rpt { report_clocks }
-redirect reports/timing/sta_constraints.rpt { check_timing }
+report_clocks
+check_timing
 
 # ── Signoff summary ───────────────────────────────────────────────────────────
-puts "\n================================================================="
-puts "  SIGNOFF SUMMARY"
-puts "================================================================="
-
 proc get_wns {min_max corner_name} {
     set paths [find_timing_paths -path_delay $min_max -corner $corner_name -sort_by_slack -endpoint_path_count 1]
     if {[llength $paths] == 0} { return 0.0 }
@@ -120,6 +94,9 @@ set wns_tt_setup [get_wns max tt]
 set wns_ss_setup [get_wns max ss]
 set wns_ff_hold  [get_wns min ff]
 
+puts "\n================================================================="
+puts "  SIGNOFF SUMMARY"
+puts "================================================================="
 foreach {label val} [list \
     "Setup TT (WNS)" $wns_tt_setup \
     "Setup SS (WNS)" $wns_ss_setup \
