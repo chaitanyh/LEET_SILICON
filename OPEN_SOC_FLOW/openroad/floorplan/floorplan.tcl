@@ -53,16 +53,14 @@ initialize_floorplan \
     -core_area  "$BOUNDARY $BOUNDARY [expr {$DIE_SIDE - $BOUNDARY}] [expr {$DIE_SIDE - $BOUNDARY}]" \
     -site       unithd
 
+# ── Initialize routing tracks (required before place_pins) ───────────────────
+make_tracks
+
 # ── IO pin placement ─────────────────────────────────────────────────────────
-# Group by function: clock on N, reset on N, outputs distributed
 place_pins \
     -hor_layers met2 \
     -ver_layers met3 \
     -min_distance 2
-
-# Override critical pin placement for clean routing
-# clk on top edge, rst_n on top edge, outputs on right/bottom
-make_tracks
 
 # ── Tap cell insertion (prevent LU/LD well floating) ─────────────────────────
 tapcell \
