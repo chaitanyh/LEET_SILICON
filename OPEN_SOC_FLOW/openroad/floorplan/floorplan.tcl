@@ -42,7 +42,6 @@ set CORE_SIDE_UM     1320.0
 set DIE_SIDE         [expr {$CORE_SIDE_UM + 2 * $BOUNDARY}]
 set TARGET_UTIL      0.36
 
-puts "  Synthesis area: $SYNTH_AREA_UM2 µm²"
 puts "  Core side     : $CORE_SIDE_UM µm"
 puts "  Die side      : $DIE_SIDE µm (with $BOUNDARY µm boundary)"
 
