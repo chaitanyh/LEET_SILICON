@@ -13,9 +13,6 @@ jobs:
   par:
     name: P&R — Sky130A | soc_top (PicoRV32 SoC)
     runs-on: ubuntu-22.04
-    # openroad/orfs — Official OpenROAD Flow Scripts image with openroad binary pre-installed
-    container:
-      image: openroad/orfs:latest
     timeout-minutes: 240
 
     env:
@@ -27,11 +24,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify OpenROAD version
-        run: openroad -version
+      # ── Install OpenROAD binary (Precision-Innovations pre-built .deb) ─────────
+      - name: Install OpenROAD
+        run: |
+          sudo apt-get update -qq
+          wget https://github.com/Precision-Innovations/OpenROAD/releases/download/2024-12-14/openroad_2.0-17598-ga008522d8_amd64-ubuntu-22.04.deb \
+            -O /tmp/openroad.deb
+          sudo apt-get install -y --fix-missing /tmp/openroad.deb
+          openroad -version
 
       # ── Install Python + volare (PDK manager) ─────────────────────────────────
-      - name: Install volare and Sky130A PDK
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Sky130A PDK via volare
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -110,6 +118,7 @@ jobs:
         working-directory: ${{ env.DESIGN }}
         if: success()
         run: |
+          pip install klayout
           python3 physical_verification/klayout/generate_gds.py \
             --def     physical/routed.def \
             --lef     "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef" \

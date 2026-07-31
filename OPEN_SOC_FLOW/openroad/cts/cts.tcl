@@ -21,9 +21,10 @@ set_wire_rc -signal -layer met2
 set_wire_rc -clock  -layer met3
 
 clock_tree_synthesis \
-    -root_buf   sky130_fd_sc_hd__clkbuf_8 \
-    -buf_list   {sky130_fd_sc_hd__clkbuf_4 sky130_fd_sc_hd__clkbuf_8 sky130_fd_sc_hd__clkbuf_16} \
-    -wire_unit  20
+    -root_buf            sky130_fd_sc_hd__clkbuf_8 \
+    -buf_list            {sky130_fd_sc_hd__clkbuf_4 sky130_fd_sc_hd__clkbuf_8 sky130_fd_sc_hd__clkbuf_16} \
+    -wire_unit           20 \
+    -dont_use_dummy_load
 
 detailed_placement
 
