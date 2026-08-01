@@ -46,8 +46,8 @@ puts "NOTE: antenna repair skipped (crashes 2024-12-14 binary — antennas check
 
 puts "\nRunning detailed routing (TritonRoute)..."
 detailed_route \
-    -guide          physical/route.guide \
-    -output_drc     reports/routing/drc_violations.rpt \
+    -guide_file      physical/route.guide \
+    -output_drc      reports/routing/drc_violations.rpt \
     -droute_end_iter 64 \
     -verbose
 
