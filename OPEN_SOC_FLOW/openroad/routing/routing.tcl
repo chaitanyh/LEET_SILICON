@@ -42,8 +42,9 @@ if {[info commands report_global_routing_congestion] ne ""} {
     report_global_routing_congestion
 }
 
-repair_antennas -diode_cell sky130_fd_sc_hd__diode_2 \
-    || puts "NOTE: antenna repair skipped"
+if {[catch {repair_antennas sky130_fd_sc_hd__diode_2} err]} {
+    puts "NOTE: antenna repair skipped: $err"
+}
 
 puts "\nRunning detailed routing (TritonRoute)..."
 detailed_route \
@@ -53,7 +54,7 @@ detailed_route \
     -verbose
 
 puts "\n=== Post-Route DRC ==="
-check_antennas -report_file reports/routing/antenna_violations.rpt || true
+catch {check_antennas -report_file reports/routing/antenna_violations.rpt}
 
 puts "\nRunning RC extraction (OpenRCX)..."
 set rcx_rules "$PDK_ROOT/sky130A/libs.tech/openlane/rcx_rules.lef"
