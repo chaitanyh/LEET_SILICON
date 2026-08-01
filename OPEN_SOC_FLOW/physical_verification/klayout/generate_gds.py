@@ -79,13 +79,14 @@ def main():
 
 _KLAYOUT_SCRIPT = r'''
 import pya
-import sys
+import os
 
-routed_def   = sys.argv[1]
-tech_lef     = sys.argv[2]
-cell_lef     = sys.argv[3]
-std_cell_gds = sys.argv[4]
-output_gds   = sys.argv[5]
+# Paths injected via klayout -rd key=value flags
+routed_def   = os.environ.get("KL_DEF",     "")
+tech_lef     = os.environ.get("KL_TLEF",    "")
+cell_lef     = os.environ.get("KL_CLEF",    "")
+std_cell_gds = os.environ.get("KL_SCGDS",   "")
+output_gds   = os.environ.get("KL_OUT",     "")
 
 print(f"  [klayout-b] Importing LEF+DEF ...", flush=True)
 app = pya.Application.instance()
@@ -152,17 +153,15 @@ def generate_via_klayout_cli(routed_def, tech_lef, cell_lef, std_cell_gds, outpu
         script_path = f.name
 
     try:
-        cmd = [
-            klayout_bin, "-b", "-r", script_path,
-            "--",
-            str(routed_def),
-            str(tech_lef),
-            str(cell_lef),
-            str(std_cell_gds) if std_cell_gds.exists() else "",
-            str(output_gds),
-        ]
+        env = os.environ.copy()
+        env["KL_DEF"]   = str(routed_def)
+        env["KL_TLEF"]  = str(tech_lef)
+        env["KL_CLEF"]  = str(cell_lef)
+        env["KL_SCGDS"] = str(std_cell_gds) if std_cell_gds.exists() else ""
+        env["KL_OUT"]   = str(output_gds)
+        cmd = [klayout_bin, "-b", "-r", script_path]
         print(f"\nRunning: klayout -b -r {Path(script_path).name} ...", flush=True)
-        result = subprocess.run(cmd, capture_output=False, timeout=300)
+        result = subprocess.run(cmd, capture_output=False, timeout=300, env=env)
         if result.returncode == 0 and output_gds.exists() and output_gds.stat().st_size > 1000:
             size_mb = output_gds.stat().st_size / 1e6
             print(f"  GDS written: {output_gds.name} ({size_mb:.1f} MB)")
