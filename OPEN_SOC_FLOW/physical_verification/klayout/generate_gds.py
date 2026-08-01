@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
 """
-generate_gds.py — Generate GDSII from routed DEF using KLayout.
+generate_gds.py — Generate GDSII from routed DEF using KLayout Python API.
 
-KLayout's Python `db` module (headless) cannot import LEF/DEF — that
-requires the full KLayout application context (`pya`).  This script
-invokes `klayout -b` as a subprocess with a small helper script that
-runs inside the full KLayout environment where LEF/DEF import works.
-Falls back to a chip-outline placeholder GDS if the CLI fails.
+Full LEF+DEF → GDS requires one of:
+  a) OpenROAD write_gds (not in PI 2024-12-14 binary)
+  b) KLayout 0.28+ with full application context (0.26 on Ubuntu 22.04 apt crashes)
+  c) Magic VLSI
+
+This script uses pip-installed klayout (db module only, no CLI/pya) to write
+a structured placeholder GDS containing:
+  - Die outline (met1 layer, actual die dimensions from DEF)
+  - Core boundary (met2 layer)
+  - Standard cell count annotation
+  - Chip label text
+
+The routed.def and routed.v are the primary deliverables. GDS with full
+geometry requires a newer OpenROAD build or ORFS.
 
 Usage:
   python3 physical_verification/klayout/generate_gds.py \
-      --def physical/routed.def \
-      --lef "$PDK/sky130_fd_sc_hd.lef" \
-      --techlef "$PDK/sky130_fd_sc_hd__nom.tlef" \
-      --gds gds/soc_top.gds
+      --def physical/routed.def --gds gds/soc_top.gds
 """
-import sys, os, argparse, subprocess, tempfile
+import sys, os, argparse, re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -27,6 +33,40 @@ def _default_pdk_root():
     home = Path(os.environ.get("USERPROFILE", os.environ.get("HOME", str(Path.home()))))
     return home / ".volare/volare/sky130/versions" / PDK_VER / "sky130A"
 
+def parse_def_dimensions(def_path):
+    """Extract die area and unit scale from DEF DIEAREA."""
+    die = None
+    units = 1000  # default sky130 DEF units = 1000 per micron
+    try:
+        with open(def_path, "r") as f:
+            for line in f:
+                if line.startswith("UNITS DISTANCE MICRONS"):
+                    units = int(line.split()[-1].rstrip(";"))
+                if line.startswith("DIEAREA"):
+                    nums = re.findall(r"\d+", line)
+                    if len(nums) >= 4:
+                        die = (int(nums[0]), int(nums[1]), int(nums[2]), int(nums[3]))
+                        break
+    except Exception:
+        pass
+    return die, units
+
+def count_def_cells(def_path):
+    """Count placed cells from DEF COMPONENTS section."""
+    count = 0
+    try:
+        with open(def_path, "r") as f:
+            in_comp = False
+            for line in f:
+                if line.startswith("COMPONENTS"):
+                    m = re.search(r"COMPONENTS\s+(\d+)", line)
+                    if m:
+                        count = int(m.group(1))
+                    break
+    except Exception:
+        pass
+    return count
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--def",     dest="def_file",  default=None)
@@ -35,18 +75,13 @@ def main():
     parser.add_argument("--gds",     dest="gds_file",  default=None)
     args = parser.parse_args()
 
-    PDK_ROOT = _default_pdk_root()
-    ROUTED_DEF   = Path(args.def_file)  if args.def_file  else PROJECT_ROOT / "physical/routed.def"
-    TECH_LEF     = Path(args.tech_lef) if args.tech_lef  else PDK_ROOT / "libs.ref/sky130_fd_sc_hd/techlef/sky130_fd_sc_hd__nom.tlef"
-    CELL_LEF     = Path(args.lef_file) if args.lef_file  else PDK_ROOT / "libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef"
-    STD_CELL_GDS = PDK_ROOT / "libs.ref/sky130_fd_sc_hd/gds/sky130_fd_sc_hd.gds"
-    OUTPUT_GDS   = Path(args.gds_file) if args.gds_file  else PROJECT_ROOT / "gds/soc_top.gds"
+    ROUTED_DEF = Path(args.def_file)  if args.def_file else PROJECT_ROOT / "physical/routed.def"
+    OUTPUT_GDS = Path(args.gds_file) if args.gds_file else PROJECT_ROOT / "gds/soc_top.gds"
     OUTPUT_GDS.parent.mkdir(parents=True, exist_ok=True)
 
     print("=" * 65)
     print("  GDS Generation — soc_top")
     print(f"  DEF  : {ROUTED_DEF}")
-    print(f"  PDK  : sky130_fd_sc_hd")
     print(f"  Out  : {OUTPUT_GDS}")
     print("=" * 65)
 
@@ -57,149 +92,71 @@ def main():
         print("ERROR: klayout Python package not installed.")
         sys.exit(1)
 
-    if not ROUTED_DEF.exists():
-        print(f"\nWARNING: Routed DEF not found: {ROUTED_DEF}")
-        print("  Creating placeholder GDS (chip outline only)...")
-        create_placeholder_gds(OUTPUT_GDS, db)
-        return
+    # Parse DEF for actual die dimensions
+    die_coords = None
+    cell_count = 0
+    if ROUTED_DEF.exists():
+        die_coords, units = parse_def_dimensions(ROUTED_DEF)
+        cell_count = count_def_cells(ROUTED_DEF)
+        print(f"  DEF parsed: {cell_count} components, units={units}")
+        if die_coords:
+            w = (die_coords[2] - die_coords[0]) / units
+            h = (die_coords[3] - die_coords[1]) / units
+            print(f"  Die area: {w:.0f} x {h:.0f} µm")
+    else:
+        print(f"  WARNING: DEF not found — using default 1400x1400 µm")
+        units = 1000
 
-    # Try full LEF+DEF import via klayout CLI subprocess (has full pya context)
-    ok = generate_via_klayout_cli(
-        ROUTED_DEF, TECH_LEF, CELL_LEF, STD_CELL_GDS, OUTPUT_GDS
+    # Build structured GDS with die outline
+    # sky130 GDS unit: 1 db unit = 1 nm = 0.001 µm
+    layout = db.Layout()
+    layout.dbu = 0.001  # 1 nm
+
+    top_cell = layout.create_cell("soc_top")
+
+    # Die outline on met1 (layer 67/20)
+    if die_coords:
+        # DEF coords are in DEF units → convert to nm
+        nm_per_def = 1000 / units  # sky130: units=1000, so 1 DEF unit = 1 nm
+        x0 = int(die_coords[0] * nm_per_def)
+        y0 = int(die_coords[1] * nm_per_def)
+        x1 = int(die_coords[2] * nm_per_def)
+        y1 = int(die_coords[3] * nm_per_def)
+    else:
+        x0, y0, x1, y1 = 0, 0, 1400000, 1400000  # 1400 µm default
+
+    met1 = layout.layer(67, 20)
+    top_cell.shapes(met1).insert(db.Box(x0, y0, x1, y1))
+
+    # Core boundary on met2 (layer 68/20) — inset 40 µm = 40000 nm
+    boundary = 40000
+    met2 = layout.layer(68, 20)
+    top_cell.shapes(met2).insert(db.Box(
+        x0 + boundary, y0 + boundary, x1 - boundary, y1 - boundary
+    ))
+
+    # Chip label on text layer (83/44)
+    cx = (x0 + x1) // 2
+    cy = (y0 + y1) // 2
+    text_layer = layout.layer(83, 44)
+    top_cell.shapes(text_layer).insert(
+        db.Text("soc_top", db.Trans(db.Vector(cx, cy)))
     )
-    if ok:
-        return
+    top_cell.shapes(text_layer).insert(
+        db.Text(f"{cell_count} cells", db.Trans(db.Vector(cx, cy - 50000)))
+    )
 
-    # Fallback: GDS-only merge (no DEF placement expansion, but a real GDS)
-    print("\nFalling back to std-cell GDS + placeholder routing layer...")
-    create_placeholder_gds(OUTPUT_GDS, db)
-
-
-# ─── KLayout CLI batch approach ───────────────────────────────────────────────
-
-_KLAYOUT_SCRIPT = r'''
-import pya
-import os
-
-# Paths injected via klayout -rd key=value flags
-routed_def   = os.environ.get("KL_DEF",     "")
-tech_lef     = os.environ.get("KL_TLEF",    "")
-cell_lef     = os.environ.get("KL_CLEF",    "")
-std_cell_gds = os.environ.get("KL_SCGDS",   "")
-output_gds   = os.environ.get("KL_OUT",     "")
-
-print(f"  [klayout-b] Importing LEF+DEF ...", flush=True)
-app = pya.Application.instance()
-main_window = None  # batch mode — no main window
-
-# Create layout with LEF+DEF reader
-layout = pya.Layout()
-opts = pya.LoadLayoutOptions()
-# Attach LEF files via the reader options
-try:
-    lefdop = opts.lefdef_reader_options
-    lefdop.read_lef_with_layout = True
-except Exception:
-    pass
-
-# In batch KLayout, LEF+DEF are read via the LEFDEFImporter or Layout.read
-# The correct batch approach uses pya.Layout.read() which does support LEF/DEF
-try:
-    layout.read(tech_lef, opts)
-    print(f"  [klayout-b] Tech LEF loaded", flush=True)
-    layout.read(cell_lef, opts)
-    print(f"  [klayout-b] Cell LEF loaded", flush=True)
-    layout.read(routed_def, opts)
-    print(f"  [klayout-b] DEF loaded: {layout.cells()} cells", flush=True)
-except Exception as e:
-    print(f"  [klayout-b] LEF/DEF load failed: {e}", flush=True)
-    sys.exit(1)
-
-# Load std-cell GDS and merge geometry
-import os
-if os.path.exists(std_cell_gds):
-    lib = pya.Layout()
-    lib.read(std_cell_gds)
-    merged = 0
-    for cell in lib.each_cell():
-        target = layout.cell(cell.name)
-        if target is not None:
-            for li in range(lib.layers()):
-                info = lib.get_info(li)
-                if info.layer < 0:
-                    continue
-                tl = layout.layer(info.layer, info.datatype)
-                for s in cell.shapes(li).each():
-                    target.shapes(tl).insert(s)
-            merged += 1
-    print(f"  [klayout-b] Merged geometry for {merged} cells", flush=True)
-
-layout.write(output_gds)
-print(f"  [klayout-b] Written: {output_gds}", flush=True)
-'''
-
-
-def generate_via_klayout_cli(routed_def, tech_lef, cell_lef, std_cell_gds, output_gds):
-    """Run KLayout in batch mode with a helper script to do LEF/DEF import."""
-    import shutil
-
-    klayout_bin = shutil.which("klayout") or shutil.which("klayout.exe")
-    if klayout_bin is None:
-        print("  klayout binary not found in PATH — skipping CLI approach")
-        return False
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(_KLAYOUT_SCRIPT)
-        script_path = f.name
-
-    try:
-        env = os.environ.copy()
-        env["KL_DEF"]   = str(routed_def)
-        env["KL_TLEF"]  = str(tech_lef)
-        env["KL_CLEF"]  = str(cell_lef)
-        env["KL_SCGDS"] = str(std_cell_gds) if std_cell_gds.exists() else ""
-        env["KL_OUT"]   = str(output_gds)
-        cmd = [klayout_bin, "-b", "-r", script_path]
-        print(f"\nRunning: klayout -b -r {Path(script_path).name} ...", flush=True)
-        result = subprocess.run(cmd, capture_output=False, timeout=300, env=env)
-        if result.returncode == 0 and output_gds.exists() and output_gds.stat().st_size > 1000:
-            size_mb = output_gds.stat().st_size / 1e6
-            print(f"  GDS written: {output_gds.name} ({size_mb:.1f} MB)")
-            print(f"\nGDS COMPLETE: {output_gds}")
-            return True
-        else:
-            print(f"  klayout -b exited with code {result.returncode}")
-            return False
-    except Exception as e:
-        print(f"  klayout CLI failed: {e}")
-        return False
-    finally:
-        try:
-            os.unlink(script_path)
-        except Exception:
-            pass
-
-
-# ─── Placeholder GDS ──────────────────────────────────────────────────────────
-
-def create_placeholder_gds(output_gds, db):
-    try:
-        layout = db.Layout()
-        layout.dbu = 0.001
-        top_cell = layout.create_cell("soc_top")
-        layer = layout.layer(67, 20)
-        box = db.Box(0, 0, 1400000, 1400000)
-        top_cell.shapes(layer).insert(box)
-        layer_text = layout.layer(83, 44)
-        text = db.Text("soc_top", db.Trans(db.Vector(700000, 700000)))
-        top_cell.shapes(layer_text).insert(text)
-        layout.write(str(output_gds))
-        size_kb = output_gds.stat().st_size / 1e3
-        print(f"Placeholder GDS written: {output_gds} ({size_kb:.1f} kB)")
-        print("  NOTE: Full GDS requires `klayout` binary with LEF/DEF support")
-    except Exception as e:
-        print(f"Could not create placeholder GDS: {e}")
-
+    layout.write(str(OUTPUT_GDS))
+    size_kb = OUTPUT_GDS.stat().st_size / 1e3
+    print(f"\nGDS written: {OUTPUT_GDS.name} ({size_kb:.1f} kB)")
+    print(f"  Die outline + core boundary from routed DEF")
+    print(f"  Cell count: {cell_count}")
+    print()
+    print("NOTE: Full merged GDS (with std-cell geometry) requires:")
+    print("  - OpenROAD write_gds (not in PI 2024-12-14 binary)")
+    print("  - Or: KLayout 0.28+ with ORFS tech bundle")
+    print("  - Or: Magic VLSI stream-out")
+    print(f"\nGDS COMPLETE (structural outline): {OUTPUT_GDS}")
 
 if __name__ == "__main__":
     main()

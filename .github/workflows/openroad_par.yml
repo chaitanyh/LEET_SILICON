@@ -115,17 +115,15 @@ jobs:
           cat reports/timing/sta_signoff_summary.rpt 2>/dev/null || true
 
       # ── GDS export ─────────────────────────────────────────────────────────────
-      # Install full KLayout (system package) for LEF/DEF → GDS conversion.
-      # pip install klayout provides only the Python db module (no CLI binary);
-      # the CLI binary is required to use pya (full application context) for LEF/DEF import.
+      # PI 2024-12-14 binary has no write_gds command.
+      # KLayout 0.26 (Ubuntu 22.04 apt) crashes in -b batch Python mode.
+      # KLayout 0.30 (pip) has no CLI binary and db.Layout.read() cannot load LEF/DEF.
+      # Best available: use pip klayout to write a structured placeholder GDS
+      # with a met1 die-outline box. Full merged GDS requires ORFS or newer binary.
       - name: "GDS Export"
         working-directory: ${{ env.DESIGN }}
         if: success()
         run: |
-          # Install full KLayout system package (provides `klayout` binary + pya)
-          sudo apt-get update -qq
-          sudo apt-get install -y klayout || echo "WARNING: klayout apt install failed"
-          klayout -v || echo "klayout binary not available"
           pip install klayout
           python3 physical_verification/klayout/generate_gds.py \
             --def     physical/routed.def \
