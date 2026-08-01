@@ -44,6 +44,18 @@ if {[info commands report_global_routing_congestion] ne ""} {
 
 puts "NOTE: antenna repair skipped (crashes 2024-12-14 binary — antennas checked post-route)"
 
+puts "\nReclassifying tie nets to SIGNAL for TritonRoute (DRT-0305)..."
+set db_block [[[ord::get_db] getChip] getBlock]
+foreach net_name {zero_ one_} {
+    set net [$db_block findNet $net_name]
+    if {$net ne "NULL"} {
+        $net setSigType SIGNAL
+        puts "  $net_name: reclassified to SIGNAL"
+    } else {
+        puts "  $net_name: not found (skipping)"
+    }
+}
+
 puts "\nRunning detailed routing (TritonRoute)..."
 detailed_route \
     -output_drc      reports/routing/drc_violations.rpt \
