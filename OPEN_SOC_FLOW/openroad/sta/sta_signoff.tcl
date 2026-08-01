@@ -71,21 +71,26 @@ puts "\n================================================================="
 puts "  MULTI-CORNER TIMING SUMMARY"
 puts "=================================================================\n"
 
-foreach corner {tt ff ss} {
-    puts "Corner: $corner"
-    catch {report_wns -corner $corner}
-    catch {report_tns -corner $corner}
-    puts ""
-}
+puts "WNS (active corner):"
+catch {report_wns}
+puts "TNS (active corner):"
+catch {report_tns}
 
 report_clocks
 check_timing
 
 # ── Signoff summary ───────────────────────────────────────────────────────────
-proc get_wns {min_max corner_name} {
+proc get_wns {min_max {corner_name ""}} {
     set paths {}
     catch {
-        set paths [find_timing_paths -path_delay $min_max -corner $corner_name -sort_by_slack]
+        if {$corner_name ne ""} {
+            set paths [find_timing_paths -path_delay $min_max -corner $corner_name -sort_by_slack]
+        }
+    }
+    if {[llength $paths] == 0} {
+        catch {
+            set paths [find_timing_paths -path_delay $min_max -sort_by_slack]
+        }
     }
     if {[llength $paths] == 0} { return 0.0 }
     return [get_property [lindex $paths 0] slack]
