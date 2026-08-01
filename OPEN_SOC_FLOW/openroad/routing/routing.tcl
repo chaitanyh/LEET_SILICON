@@ -35,12 +35,12 @@ global_route \
     -guide_file             physical/route.guide \
     -congestion_iterations  20 \
     -congestion_report_file reports/routing/congestion.rpt \
-    -verbose                1
+    -verbose
 
 puts "\n=== Global Routing Congestion ==="
 report_global_routing_congestion
 
-repair_antennas sky130_fd_sc_hd__diode_2 \
+repair_antennas -diode_cell sky130_fd_sc_hd__diode_2 \
     || puts "NOTE: antenna repair skipped"
 
 puts "\nRunning detailed routing (TritonRoute)..."
@@ -48,7 +48,7 @@ detailed_route \
     -guide          physical/route.guide \
     -output_drc     reports/routing/drc_violations.rpt \
     -droute_end_iter 64 \
-    -verbose        1
+    -verbose
 
 puts "\n=== Post-Route DRC ==="
 check_antennas -report_file reports/routing/antenna_violations.rpt || true
