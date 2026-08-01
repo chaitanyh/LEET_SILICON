@@ -38,7 +38,9 @@ global_route \
     -verbose
 
 puts "\n=== Global Routing Congestion ==="
-report_global_routing_congestion
+if {[info commands report_global_routing_congestion] ne ""} {
+    report_global_routing_congestion
+}
 
 repair_antennas -diode_cell sky130_fd_sc_hd__diode_2 \
     || puts "NOTE: antenna repair skipped"
