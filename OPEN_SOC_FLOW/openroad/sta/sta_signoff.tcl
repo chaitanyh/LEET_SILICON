@@ -76,8 +76,8 @@ catch {report_wns}
 puts "TNS (active corner):"
 catch {report_tns}
 
-report_clocks
-check_timing
+catch {report_clocks}
+catch {check_timing}
 
 # ── Signoff summary ───────────────────────────────────────────────────────────
 proc get_wns {min_max {corner_name ""}} {

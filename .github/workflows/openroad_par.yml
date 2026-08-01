@@ -114,22 +114,23 @@ jobs:
           cat reports/timing/sta_signoff_summary.rpt 2>/dev/null || true
 
       # ── GDS export ─────────────────────────────────────────────────────────────
+      # Install full KLayout (system package) for LEF/DEF → GDS conversion.
+      # pip install klayout provides only the Python db module (no CLI binary);
+      # the CLI binary is required to use pya (full application context) for LEF/DEF import.
       - name: "GDS Export"
         working-directory: ${{ env.DESIGN }}
         if: success()
         run: |
-          # Check if routing.tcl already produced GDS via write_gds
-          if [ -f gds/soc_top.gds ] && [ "$(stat -c%s gds/soc_top.gds 2>/dev/null || echo 0)" -gt 100000 ]; then
-            echo "GDS already produced by OpenROAD write_gds: $(ls -lh gds/soc_top.gds)"
-          else
-            echo "GDS not produced by OpenROAD — running Python fallback..."
-            pip install klayout
-            python3 physical_verification/klayout/generate_gds.py \
-              --def     physical/routed.def \
-              --lef     "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef" \
-              --techlef "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/techlef/sky130_fd_sc_hd__nom.tlef" \
-              --gds     gds/soc_top.gds 2>&1 | tee gds/generate_gds.log || true
-          fi
+          # Install full KLayout system package (provides `klayout` binary + pya)
+          sudo apt-get update -qq
+          sudo apt-get install -y klayout || echo "WARNING: klayout apt install failed"
+          klayout -v || echo "klayout binary not available"
+          pip install klayout
+          python3 physical_verification/klayout/generate_gds.py \
+            --def     physical/routed.def \
+            --lef     "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef" \
+            --techlef "$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/techlef/sky130_fd_sc_hd__nom.tlef" \
+            --gds     gds/soc_top.gds 2>&1 | tee gds/generate_gds.log || true
           ls -lh gds/
 
       # ── DRC ────────────────────────────────────────────────────────────────────
