@@ -21,8 +21,8 @@ set_wire_rc -signal -layer met2
 set_wire_rc -clock  -layer met3
 
 set_routing_layers \
-    -signal {met1 met2 met3 met4} \
-    -clock  {met3 met4 met5}
+    -signal met1-met4 \
+    -clock  met3-met5
 
 set_global_routing_layer_adjustment met1 0.65
 set_global_routing_layer_adjustment met2 0.15
