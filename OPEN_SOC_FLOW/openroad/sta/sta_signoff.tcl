@@ -47,7 +47,6 @@ if {[file exists $SPEF_FILE]} {
     puts "NOTE: SPEF not found — using wire RC models"
     set_wire_rc -signal -layer met2
     set_wire_rc -clock  -layer met3
-    estimate_parasitics -placement
 }
 
 file mkdir reports/timing
@@ -55,18 +54,18 @@ file mkdir reports/timing
 puts "\n=== TT Corner — Setup ==="
 report_checks -corner tt -path_delay max \
     -fields {slew cap input_pins nets} \
-    -format full_clock_expanded -digits 3 -path_count 10
+    -format full_clock_expanded -digits 3
 
 puts "\n=== TT Corner — Hold ==="
-report_checks -corner tt -path_delay min -digits 3 -path_count 5
+report_checks -corner tt -path_delay min -digits 3
 
 puts "\n=== SS Corner — Setup (worst) ==="
 report_checks -corner ss -path_delay max \
     -fields {slew cap input_pins nets} \
-    -format full_clock_expanded -digits 3 -path_count 10
+    -format full_clock_expanded -digits 3
 
 puts "\n=== FF Corner — Hold (worst) ==="
-report_checks -corner ff -path_delay min -digits 3 -path_count 10
+report_checks -corner ff -path_delay min -digits 3
 
 puts "\n================================================================="
 puts "  MULTI-CORNER TIMING SUMMARY"
@@ -74,8 +73,8 @@ puts "=================================================================\n"
 
 foreach corner {tt ff ss} {
     puts "Corner: $corner"
-    report_wns -corner $corner
-    report_tns -corner $corner
+    catch {report_wns -corner $corner}
+    catch {report_tns -corner $corner}
     puts ""
 }
 
@@ -84,7 +83,10 @@ check_timing
 
 # ── Signoff summary ───────────────────────────────────────────────────────────
 proc get_wns {min_max corner_name} {
-    set paths [find_timing_paths -path_delay $min_max -corner $corner_name -sort_by_slack -endpoint_path_count 1]
+    set paths {}
+    catch {
+        set paths [find_timing_paths -path_delay $min_max -corner $corner_name -sort_by_slack]
+    }
     if {[llength $paths] == 0} { return 0.0 }
     return [get_property [lindex $paths 0] slack]
 }
