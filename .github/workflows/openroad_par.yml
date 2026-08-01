@@ -7,6 +7,7 @@ on:
       - "OPEN_SOC_FLOW/gls/netlist/soc_top_sky130.v"
       - "OPEN_SOC_FLOW/constraints/soc_top.sdc"
       - "OPEN_SOC_FLOW/openroad/**"
+      - "OPEN_SOC_FLOW/physical_verification/klayout/**"
       - ".github/workflows/openroad_par.yml"
 
 jobs:
