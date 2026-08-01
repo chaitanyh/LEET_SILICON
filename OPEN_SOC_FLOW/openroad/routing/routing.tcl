@@ -42,9 +42,7 @@ if {[info commands report_global_routing_congestion] ne ""} {
     report_global_routing_congestion
 }
 
-if {[catch {repair_antennas sky130_fd_sc_hd__diode_2} err]} {
-    puts "NOTE: antenna repair skipped: $err"
-}
+puts "NOTE: antenna repair skipped (crashes 2024-12-14 binary — antennas checked post-route)"
 
 puts "\nRunning detailed routing (TritonRoute)..."
 detailed_route \
